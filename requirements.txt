@@ -1,0 +1,20 @@
+# local-clipper Python dependencies
+faster-whisper>=1.0.0
+opencv-python>=4.9.0,<5        # 5.0.0.93 on PyPI is a broken wheel (no CascadeClassifier)
+yt-dlp>=2024.0.0
+requests>=2.31.0
+youtube-transcript-api>=1.0.0  # fetch captions WITHOUT downloading the video
+indic-transliteration>=2.3.0   # Devanagari -> Hinglish caption romanization
+
+# CUDA runtime libs for faster-whisper (CTranslate2) on the GPU.
+# Without these you get "cublas64_12.dll is not found".
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
+
+# Optional: only needed so the pipeline can call torch.cuda.empty_cache()
+# between the transcription and LLM stages. faster-whisper itself uses
+# CTranslate2 (not torch) for inference, and releases its own VRAM when the
+# model is freed, so torch is NOT required. Install the CUDA build if you
+# want the explicit cache flush:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+# torch

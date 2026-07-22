@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Caches (transcripts, downloaded segments, per-segment word timings)
+.cache/
+
+# Generated output (rendered clips, manifests, .ass files)
+output/
+output_*/
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.wav
+*.ass
+manifest*.json
+
+# Logs / scratch
+pip_install.log
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
