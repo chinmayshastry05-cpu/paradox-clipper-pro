@@ -31,8 +31,14 @@ def run(source, n_clips=5, output_dir=None, whisper_model=config.DEFAULT_WHISPER
     duration = max((s["end"] for s in segments), default=0.0)
     log.info("transcript via %s | ~%.0fs | lang=%s", method, duration, language)
 
-    # ---- 2. AI analysis: pick clip ranges --------------------------------
-    clips = analysis.select_clips(segments, n_clips, duration, llm_model)
+    # ---- 2. AI analysis: pick clip ranges (cached so retries stay aligned) --
+    sel_cache = config.SELECTION_CACHE / f"{key}_{n_clips}clips_{llm_model.replace(':', '-')}.json"
+    if not force and sel_cache.exists():
+        clips = json.loads(sel_cache.read_text(encoding="utf-8"))
+        log.info("cache HIT — clip selection (%d ranges) for '%s'", len(clips), key)
+    else:
+        clips = analysis.select_clips(segments, n_clips, duration, llm_model)
+        sel_cache.write_text(json.dumps(clips, ensure_ascii=False), encoding="utf-8")
     log.info("selected %d clip range(s)", len(clips))
     for c in clips:
         c["clock"] = f"{fmt_time(c['start'])}-{fmt_time(c['end'])}"
@@ -72,8 +78,32 @@ def run(source, n_clips=5, output_dir=None, whisper_model=config.DEFAULT_WHISPER
                 try:
                     seg_paths[id(c)] = fut.result()
                 except Exception as e:  # noqa: BLE001
-                    log.error("download failed for clip '%s' (%s): %s",
-                              c["title"], c["clock"], e)
+                    log.warning("ranged download failed for clip '%s' (%s): %s",
+                                c["title"], c["clock"], str(e).splitlines()[0][:120])
+
+        # Fallback: any clip whose ranged fetch failed -> download the full video
+        # ONCE (cached, shared) and slice those clips out locally.
+        failed = [c for c in todo if id(c) not in seg_paths]
+        if failed:
+            from .util import is_url
+            if is_url(source):
+                log.warning("%d segment(s) failed ranged fetch — using full-video "
+                            "fallback for them", len(failed))
+                try:
+                    full = download.get_full_video(source)
+                    for c in failed:
+                        try:
+                            seg_paths[id(c)] = download.slice_from_local(
+                                full, source, c["start"], c["end"])
+                        except Exception as e:  # noqa: BLE001
+                            log.error("fallback slice failed for '%s' (%s): %s",
+                                      c["title"], c["clock"], e)
+                except Exception as e:  # noqa: BLE001
+                    log.error("full-video fallback download failed: %s", e)
+            else:
+                for c in failed:
+                    log.error("could not fetch segment for '%s' (%s)",
+                              c["title"], c["clock"])
 
     # ---- 4. prepare each clip (words + crop + captions) — GPU work serial -
     prepared = []

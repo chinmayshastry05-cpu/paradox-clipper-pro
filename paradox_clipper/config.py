@@ -10,6 +10,7 @@ CACHE_DIR = ROOT / ".cache"
 TRANSCRIPT_CACHE = CACHE_DIR / "transcripts"      # transcript_<videoid>.json
 SEGMENT_CACHE = CACHE_DIR / "segments"            # <videoid>_<start>-<end>.mp4
 SEGWORDS_CACHE = CACHE_DIR / "segwords"           # <videoid>_<start>-<end>.json
+SELECTION_CACHE = CACHE_DIR / "selections"        # <videoid>_<n>clips.json
 
 DEFAULT_OUTPUT = ROOT / "output"
 
@@ -32,7 +33,8 @@ MIN_LEN = 18.0
 MAX_LEN = 90.0
 
 # Concurrency
-DOWNLOAD_WORKERS = 4               # network-bound, safe to parallelize
+DOWNLOAD_WORKERS = 2               # network-bound; keep low so concurrent DNS
+                                  # lookups don't trip flaky getaddrinfo failures
 RENDER_WORKERS = 2                # ffmpeg is CPU-heavy; keep modest
 # Note: whisper caption passes run SERIALLY (single shared GPU model).
 
@@ -41,5 +43,6 @@ DEFAULT_CAPTION_SCRIPT = "hinglish"
 
 
 def ensure_dirs():
-    for d in (CACHE_DIR, TRANSCRIPT_CACHE, SEGMENT_CACHE, SEGWORDS_CACHE):
+    for d in (CACHE_DIR, TRANSCRIPT_CACHE, SEGMENT_CACHE, SEGWORDS_CACHE,
+              SELECTION_CACHE):
         d.mkdir(parents=True, exist_ok=True)

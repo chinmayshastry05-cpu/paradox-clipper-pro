@@ -75,16 +75,17 @@ def _user_prompt(segments, n, duration):
         f"AVOID: intros, greetings, logistics, generic praise, rambling, anything boring.\n\n"
         f"LENGTH: choose the natural length of each moment, anywhere from 18 to 75 "
         f"seconds. Start right before the setup; end right after the payoff. Don't pad.\n\n"
-        f"TITLE — this is what earns the click. Use this exact two-part shape:\n"
-        f"  [HOOK]: [SPECIFIC]!   (or end with ?)\n"
-        f"  - [HOOK] = a 1-4 word provocative/curiosity teaser (the emotional angle).\n"
-        f"  - [SPECIFIC] = who + the concrete thing that actually happens in THIS clip, "
-        f"using the person's REAL NAME from the transcript (never 'he/someone/a guy').\n"
-        f"  *** Build both parts ONLY from what is actually said in THIS segment. Do NOT "
-        f"reuse wording from these instructions. Do NOT invent topics not in the clip. ***\n"
-        f"  NEVER pick pure intros/greetings/'X appears on stage'.\n"
-        f"  Clean English; no raw transcript words/numbers/timestamps in the title. Don't "
-        f"sanitize spicy/taboo topics — name them bluntly.\n\n"
+        f"TITLE — this is what earns the click. It is ONE plain English sentence "
+        f"(a single string, NOT an object, NOT JSON, no braces, no field names). "
+        f"Shape: a short provocative hook, then a colon, then the concrete specific "
+        f"thing that happens, ending in ! or ?. Example shape only: "
+        f"\"Brutal Roast: Abhijeet Destroys the Students!\".\n"
+        f"  - Name the real person from the transcript (never 'he/someone/a guy').\n"
+        f"  - Build it ONLY from what is actually said in THIS segment; don't invent "
+        f"topics or reuse this instruction's wording.\n"
+        f"  - NEVER pick pure intros/greetings/'X appears on stage'.\n"
+        f"  - Clean English, no raw transcript words/numbers/timestamps. Don't sanitize "
+        f"spicy/taboo topics — name them bluntly.\n\n"
         f"HOOK: one scroll-stopping line. REASON: one short phrase on why it will pop.\n\n"
         f"*** LANGUAGE: the transcript may be Hindi or another language, but ALL of your "
         f"output — title, hook, reason — MUST be written in ENGLISH using the Latin "
@@ -149,6 +150,14 @@ def _ensure_latin(text):
 
 def _clean_title(t):
     import re
+    # Safety net: if the model stuffed JSON into the title field, recover the text.
+    if "{" in t or '"hook"' in t or "'hook'" in t:
+        vals = re.findall(r'["“]?(?:hook|specific|title)["”]?\s*[:=]\s*["“]([^"”]+)["”]', t)
+        if vals:
+            t = ": ".join(v.strip() for v in vals[:2])
+        else:
+            t = re.sub(r'[{}\[\]"“”]', " ", t)
+            t = re.sub(r'\b(hook|specific|title)\b\s*[:=]?', " ", t, flags=re.I)
     t = _ensure_latin(t)
     t = re.sub(r"\b\d{1,4}\s*[-:]\s*\d{1,4}\b", "", t)
     t = re.sub(r"\s{2,}", " ", t)
