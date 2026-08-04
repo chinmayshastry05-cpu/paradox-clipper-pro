@@ -18,6 +18,32 @@ SYS_PROMPT = (
     "RETENTION and SHARES, not for summarizing."
 )
 
+# Viral playbook — distilled patterns of top-performing short-form clips. This is the
+# "trained-in" instinct: what actually makes people stop, watch, and share. Injected
+# into every selection prompt so the model scores moments like a seasoned clipper.
+VIRAL_PLAYBOOK = (
+    "VIRAL PLAYBOOK (score every candidate moment against this, keep the highest):\n"
+    "1. HOOK IN THE FIRST 2 SECONDS. The clip must OPEN on the punch — the wild line, "
+    "the claim, the reaction — never on the wind-up or setup chatter. If the best line "
+    "is 8s in, start the clip ~2s before it, not at the topic's beginning.\n"
+    "2. HOOK TYPES that stop the scroll (a clip should hit at least one, hard):\n"
+    "   - Curiosity gap / open loop: a question or tease the viewer needs resolved.\n"
+    "   - Controversy / hot take: a bold, divisive, 'did they just say that' claim.\n"
+    "   - Visceral emotion: shock, secondhand cringe, genuine vulnerability, outrage.\n"
+    "   - High stakes / specificity: real names, real numbers, real consequences.\n"
+    "   - Taboo / forbidden: sex, money, addiction, death, beef — named bluntly.\n"
+    "   - Dark / savage humor: brutal roast, morbid punchline, deadpan bleak take.\n"
+    "3. COMPLETE ARC: tension then release. Setup -> payoff, lands inside the clip, "
+    "makes full sense with ZERO outside context. No clip that needs 'earlier they said'.\n"
+    "4. SHARE TRIGGER: the moment makes a viewer FEEL something, pick a side, or tag a "
+    "friend ('this is so you'). If it wouldn't get sent in a group chat, skip it.\n"
+    "5. PACING: dense, no dead air. Cut rambles, throat-clearing, 'umm' runs, logistics.\n"
+    "6. REJECT: intros, greetings, thank-yous, generic praise, context-only setup, "
+    "anything that only makes sense if you watched the rest.\n"
+    "For each of the N clips: internally rate hook-strength, emotion, and completeness, "
+    "and only return moments that are strong on all three.\n\n"
+)
+
 CLIPS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -63,16 +89,9 @@ def _user_prompt(segments, n, duration):
         f"in SECONDS.\n\n"
         f"Find the {n} MOST VIRAL, non-overlapping moments — the clips most likely "
         f"to blow up as standalone Shorts/Reels.\n\n"
-        f"WHAT MAKES A MOMENT VIRAL (pick for these — lean HARD into DARK HUMOR):\n"
-        f"- DARK / edgy / savage humor: brutal roasts, morbid jokes, self-deprecating "
-        f"pain played for laughs, offensive-but-funny, deadpan bleak takes, awkward cringe\n"
-        f"- Jokes with a clear setup and a punchline that lands\n"
-        f"- Emotional peaks: shocking confessions, vulnerability twisted into comedy, conflict, hot takes\n"
-        f"- Taboo / spicy / personal topics people can't help clicking\n"
-        f"- Surprising stories, bold claims, drama, someone getting destroyed in a roast\n"
-        f"- A COMPLETE beat: setup + payoff, makes sense with zero context\n"
-        f"Prioritize the funniest, darkest, most savage moments over wholesome ones.\n"
-        f"AVOID: intros, greetings, logistics, generic praise, rambling, anything boring.\n\n"
+        f"{VIRAL_PLAYBOOK}"
+        f"When the content is comedy, lean into the funniest, darkest, most savage "
+        f"beats (brutal roasts, morbid jokes, taboo confessions) over wholesome ones.\n\n"
         f"LENGTH: choose the natural length of each moment, anywhere from 18 to 75 "
         f"seconds. Start right before the setup; end right after the payoff. Don't pad.\n\n"
         f"TITLE — this is what earns the click. It is ONE plain English sentence "
