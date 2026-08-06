@@ -13,9 +13,11 @@ log = get_logger("analysis")
 
 SYS_PROMPT = (
     "You are a viral short-form video editor (TikTok / Reels / YouTube Shorts) who "
-    "clips long podcasts and panels into scroll-stopping moments. You have a proven "
-    "instinct for what makes people stop, laugh, gasp, and share. You optimize for "
-    "RETENTION and SHARES, not for summarizing."
+    "clips long videos — podcasts, panels, talks, tutorials, vlogs, interviews — into "
+    "scroll-stopping moments. You have a proven instinct for what makes people stop, "
+    "watch, and share. MATCH THE TONE TO THE CONTENT: comedy/panels -> funny, savage, "
+    "dramatic; tutorials/how-to/informational -> surprising, genuinely useful, "
+    "'I didn't know that'. You optimize for RETENTION and SHARES, not summarizing."
 )
 
 # Viral playbook — distilled patterns of top-performing short-form clips. This is the
@@ -90,57 +92,74 @@ def _condense(segments, target_chars=18000, per_line=120):
     return "\n".join(lines)
 
 
-def _user_prompt(segments, n, duration, focus=None):
+_COMEDY_FLAVOR = (
+    "TONE: comedy/panel. Lean into the funniest, darkest, most savage beats — brutal "
+    "roasts, morbid jokes, taboo confessions, hot takes — over wholesome ones.\n\n")
+_COMEDY_TITLES = (
+    "TITLE FORMULAS (from top-viral titles — use the SHAPE, fill with THIS clip's real "
+    "content, never copy the words):\n"
+    "  - Named person + strong verb: '<Name> Roasts/Destroys/Exposes <Target>', "
+    "'<Name> Finally Breaks His Silence', '<Name> Gets Roasted'.\n"
+    "  - Versus / clash: '<Name> vs <Name>: <what happens>'.\n"
+    "  - Reveal / confession: '<Name> Reveals <shocking specific>'.\n"
+    "  - Open loop: 'Will <Name> Survive <X>?', 'The <thing> Everyone Gets Wrong'.\n"
+    "  - Superlative: 'Most Savage <X>', 'The Wildest <X> Ever'.\n")
+_CLEAN_FLAVOR = (
+    "TONE: informational / how-to. Pick the most SURPRISING, genuinely USEFUL, "
+    "'I didn't know that' moments — each a self-contained tip or insight with a clear "
+    "payoff. Absolutely NO roasting, NO 'destroys/savage' framing, NO manufactured drama.\n\n")
+_CLEAN_TITLES = (
+    "TITLE FORMULAS for useful/how-to content (use the SHAPE, fill from THIS clip):\n"
+    "  - Curiosity gap: 'You Didn't Know <thing> Could <do X>', 'The <feature> Nobody Uses'.\n"
+    "  - Fastest / best way: 'The Fastest Way to <do X>', 'Stop Doing <X> — Do This Instead'.\n"
+    "  - One-setting payoff: 'This One Setting <benefit>', '<Feature> That Saves You <X>'.\n"
+    "  - Hidden trick: 'Hidden <thing> Trick: <what it does>'.\n")
+
+
+def _user_prompt(segments, n, duration, focus=None, tone="comedy"):
     transcript = _condense(segments)
     focus_block = ""
     if focus:
         focus_block = (
             f"*** TOPIC FOCUS: pick ONLY moments about — {focus}. Ignore everything "
-            f"else, however funny or dramatic. Each clip must be a self-contained "
-            f"STORY/anecdote on this topic with a clear beginning, tension, and payoff "
-            f"that keeps viewers watching to the end (retention). ***\n\n")
+            f"else. Each clip must be a self-contained moment on this topic with a clear "
+            f"beginning, tension/interest, and payoff that holds viewers to the end. ***\n\n")
+    clean = tone == "clean"
+    flavor = _CLEAN_FLAVOR if clean else _COMEDY_FLAVOR
+    title_formulas = _CLEAN_TITLES if clean else _COMEDY_TITLES
     return (
         f"The video is {duration:.0f} seconds long ({duration/60:.1f} minutes). "
         f"Below is its transcript; each line starts with its [start-end] time range "
         f"in SECONDS. It spans the WHOLE video — pick moments from ACROSS the entire "
         f"runtime (beginning, middle, AND end), not just the opening.\n\n"
         f"{focus_block}"
-        f"Find the {n} MOST VIRAL, non-overlapping moments — the clips most likely "
+        f"Find the {n} MOST engaging, non-overlapping moments — the clips most likely "
         f"to blow up as standalone Shorts/Reels.\n\n"
         f"{VIRAL_PLAYBOOK}"
-        f"When the content is comedy, lean into the funniest, darkest, most savage "
-        f"beats (brutal roasts, morbid jokes, taboo confessions) over wholesome ones.\n\n"
+        f"{flavor}"
         f"LENGTH: choose the natural length of each moment, between "
         f"{int(config.MIN_LEN)} and {int(config.MAX_LEN)} seconds (HARD MAX "
         f"{int(config.MAX_LEN)}s — never longer). Start right before the setup; end "
         f"right after the payoff. Don't pad.\n\n"
         f"TITLE — this is what earns the click. It is ONE plain English sentence "
         f"(a single string, NOT an object, NOT JSON, no braces, no field names). "
-        f"Shape: a short provocative hook, then a colon, then the concrete specific "
-        f"thing that happens, ending in ! or ?. Example shape only: "
-        f"\"Brutal Roast: Abhijeet Destroys the Students!\".\n"
-        f"  - Name the real person from the transcript (never 'he/someone/a guy').\n"
-        f"  - Build it ONLY from what is actually said in THIS segment; don't invent "
-        f"topics or reuse this instruction's wording.\n"
-        f"  - NEVER pick pure intros/greetings/'X appears on stage'.\n"
-        f"  - Clean English, no raw transcript words/numbers/timestamps. Don't sanitize "
-        f"spicy/taboo topics — name them bluntly.\n\n"
-        f"TITLE FORMULAS (mined from top-viral Indian YouTube titles — use the SHAPE, "
-        f"fill with THIS clip's real content, never copy the words):\n"
-        f"  - Named person + savage verb: '<Name> Roasts/Destroys/Cooks <Target>', "
-        f"'<Name> Finally Breaks His Silence', '<Name> Gets Roasted'.\n"
-        f"  - Versus / clash: '<Name> vs <Name>: <what happens>'.\n"
-        f"  - Reveal / confession: '<Name> Reveals <shocking specific>', "
-        f"'<Name> Admits <taboo thing>'.\n"
-        f"  - Open loop / question: 'Will <Name> Survive <X>?', "
-        f"'The <thing> Everyone Gets Wrong'.\n"
-        f"  - Superlative + specific: 'Most Savage <X>', 'The Wildest <X> Ever'.\n"
-        f"  Front-load the name and the payoff; keep it tight (aim under ~10 words).\n\n"
+        f"Shape: a short hook, then a colon, then the concrete specific thing that "
+        f"happens, ending in ! or ?.\n"
+        f"  *** NEVER invent a name. Use a real person's name ONLY if it clearly appears "
+        f"in the transcript; otherwise use the SUBJECT/action instead (e.g. 'Hidden "
+        f"Bixby Trick: ...', 'This One Setting ...'). Do not attribute words to anyone "
+        f"not named in the transcript. ***\n"
+        f"  - Build it ONLY from what THIS segment actually says; don't reuse this "
+        f"instruction's wording or invent topics.\n"
+        f"  - NEVER pick pure intros/greetings. Clean English, no raw transcript "
+        f"words/numbers/timestamps.\n\n"
+        f"{title_formulas}"
+        f"  Front-load the payoff; keep it tight (aim under ~10 words).\n\n"
         f"HOOK: one scroll-stopping line. REASON: one short phrase on why it will pop.\n\n"
         f"*** LANGUAGE: the transcript may be Hindi or another language, but ALL of your "
         f"output — title, hook, reason — MUST be written in ENGLISH using the Latin "
-        f"alphabet. Translate the meaning to English; transliterate people's names to "
-        f"Latin letters. NEVER output Devanagari or any non-Latin script. ***\n\n"
+        f"alphabet. Translate meaning to English; transliterate names to Latin letters. "
+        f"NEVER output Devanagari or any non-Latin script. ***\n\n"
         f"Return ONLY JSON: "
         f'{{"clips": [{{"start": <number>, "end": <number>, "title": "...", '
         f'"hook": "...", "reason": "..."}}]}}\n'
@@ -149,13 +168,14 @@ def _user_prompt(segments, n, duration, focus=None):
     )
 
 
-def select_clips(segments, n, duration, model=config.DEFAULT_LLM, focus=None):
+def select_clips(segments, n, duration, model=config.DEFAULT_LLM, focus=None,
+                 tone="comedy"):
     """Ask the LLM for the n best clips. Returns validated list of clip dicts."""
     payload = {
         "model": model,
         "messages": [
             {"role": "system", "content": SYS_PROMPT},
-            {"role": "user", "content": _user_prompt(segments, n, duration, focus)},
+            {"role": "user", "content": _user_prompt(segments, n, duration, focus, tone)},
         ],
         "format": {**CLIPS_SCHEMA, "properties": {"clips": {
             **CLIPS_SCHEMA["properties"]["clips"], "minItems": n, "maxItems": n}}},

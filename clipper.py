@@ -47,6 +47,9 @@ def main():
     ap.add_argument("--focus", default=None,
                     help="only pick clips about this topic/theme, e.g. "
                          "\"CIA mission stories\"")
+    ap.add_argument("--tone", choices=["comedy", "clean"], default="comedy",
+                    help="comedy = savage/roast framing (default); clean = "
+                         "informational/how-to, no roast, no invented names")
     ap.add_argument("--max-len", type=float, default=None,
                     help="max clip length in seconds (e.g. 59)")
     ap.add_argument("--min-len", type=float, default=None,
@@ -79,7 +82,7 @@ def main():
             vertical=args.vertical, captions_on=args.captions,
             caption_style=args.caption_style, caption_script=args.caption_script,
             music=args.music, broll=args.broll, dry_run=args.dry_run, force=args.force,
-            focus=args.focus,
+            focus=args.focus, tone=args.tone,
         )
     except (RuntimeError, KeyboardInterrupt) as e:
         log.error("%s", e)
