@@ -66,34 +66,54 @@ CLIPS_SCHEMA = {
 }
 
 
-def _condense(segments, block=18.0, max_chars=9000):
-    lines, cs, ce, ct = [], None, None, []
+def _condense(segments, target_chars=18000, per_line=120):
+    """Summarize the WHOLE video into evenly-spaced [start-end] lines that fit the
+    LLM budget. Each line samples one time-block's speech, TRUNCATED to `per_line`
+    chars, so a 90-minute transcript is covered end-to-end (a taste of every block)
+    instead of dumping every word and truncating to the first few minutes."""
+    if not segments:
+        return ""
+    dur = segments[-1]["end"] or segments[-1]["start"] or 1.0
+    n_lines = max(20, target_chars // (per_line + 16))   # +16 for the [ts] prefix
+    block = max(8.0, dur / n_lines)
+    lines, cs, ce, buf = [], None, None, []
     for s in segments:
         if cs is None:
             cs = s["start"]
         ce = s["end"]
-        ct.append(s["text"])
+        buf.append(s["text"])
         if ce - cs >= block:
-            lines.append(f"[{cs:.0f}-{ce:.0f}] {' '.join(ct)}")
-            cs, ct = None, []
-    if ct:
-        lines.append(f"[{cs:.0f}-{ce:.0f}] {' '.join(ct)}")
-    return "\n".join(lines)[:max_chars]
+            lines.append(f"[{cs:.0f}-{ce:.0f}] {' '.join(buf)[:per_line]}")
+            cs, buf = None, []
+    if buf:
+        lines.append(f"[{cs:.0f}-{ce:.0f}] {' '.join(buf)[:per_line]}")
+    return "\n".join(lines)
 
 
-def _user_prompt(segments, n, duration):
+def _user_prompt(segments, n, duration, focus=None):
     transcript = _condense(segments)
+    focus_block = ""
+    if focus:
+        focus_block = (
+            f"*** TOPIC FOCUS: pick ONLY moments about — {focus}. Ignore everything "
+            f"else, however funny or dramatic. Each clip must be a self-contained "
+            f"STORY/anecdote on this topic with a clear beginning, tension, and payoff "
+            f"that keeps viewers watching to the end (retention). ***\n\n")
     return (
         f"The video is {duration:.0f} seconds long ({duration/60:.1f} minutes). "
         f"Below is its transcript; each line starts with its [start-end] time range "
-        f"in SECONDS.\n\n"
+        f"in SECONDS. It spans the WHOLE video — pick moments from ACROSS the entire "
+        f"runtime (beginning, middle, AND end), not just the opening.\n\n"
+        f"{focus_block}"
         f"Find the {n} MOST VIRAL, non-overlapping moments — the clips most likely "
         f"to blow up as standalone Shorts/Reels.\n\n"
         f"{VIRAL_PLAYBOOK}"
         f"When the content is comedy, lean into the funniest, darkest, most savage "
         f"beats (brutal roasts, morbid jokes, taboo confessions) over wholesome ones.\n\n"
-        f"LENGTH: choose the natural length of each moment, anywhere from 18 to 75 "
-        f"seconds. Start right before the setup; end right after the payoff. Don't pad.\n\n"
+        f"LENGTH: choose the natural length of each moment, between "
+        f"{int(config.MIN_LEN)} and {int(config.MAX_LEN)} seconds (HARD MAX "
+        f"{int(config.MAX_LEN)}s — never longer). Start right before the setup; end "
+        f"right after the payoff. Don't pad.\n\n"
         f"TITLE — this is what earns the click. It is ONE plain English sentence "
         f"(a single string, NOT an object, NOT JSON, no braces, no field names). "
         f"Shape: a short provocative hook, then a colon, then the concrete specific "
@@ -129,13 +149,13 @@ def _user_prompt(segments, n, duration):
     )
 
 
-def select_clips(segments, n, duration, model=config.DEFAULT_LLM):
+def select_clips(segments, n, duration, model=config.DEFAULT_LLM, focus=None):
     """Ask the LLM for the n best clips. Returns validated list of clip dicts."""
     payload = {
         "model": model,
         "messages": [
             {"role": "system", "content": SYS_PROMPT},
-            {"role": "user", "content": _user_prompt(segments, n, duration)},
+            {"role": "user", "content": _user_prompt(segments, n, duration, focus)},
         ],
         "format": {**CLIPS_SCHEMA, "properties": {"clips": {
             **CLIPS_SCHEMA["properties"]["clips"], "minItems": n, "maxItems": n}}},

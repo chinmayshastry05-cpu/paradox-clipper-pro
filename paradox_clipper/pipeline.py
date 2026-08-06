@@ -19,7 +19,7 @@ def run(source, n_clips=5, output_dir=None, whisper_model=config.DEFAULT_WHISPER
         llm_model=config.DEFAULT_LLM, vertical=True, captions_on=True,
         caption_style=config.DEFAULT_CAPTION_STYLE,
         caption_script=config.DEFAULT_CAPTION_SCRIPT,
-        music=None, broll=None, dry_run=False, force=False):
+        music=None, broll=None, dry_run=False, force=False, focus=None):
     config.ensure_dirs()
     outdir = Path(output_dir).resolve() if output_dir else config.DEFAULT_OUTPUT
     outdir.mkdir(parents=True, exist_ok=True)
@@ -32,12 +32,15 @@ def run(source, n_clips=5, output_dir=None, whisper_model=config.DEFAULT_WHISPER
     log.info("transcript via %s | ~%.0fs | lang=%s", method, duration, language)
 
     # ---- 2. AI analysis: pick clip ranges (cached so retries stay aligned) --
-    sel_cache = config.SELECTION_CACHE / f"{key}_{n_clips}clips_{llm_model.replace(':', '-')}.json"
+    focus_tag = "_" + slugify(focus)[:24] if focus else ""
+    maxlen_tag = f"_max{int(config.MAX_LEN)}"
+    sel_cache = (config.SELECTION_CACHE /
+                 f"{key}_{n_clips}clips_{llm_model.replace(':', '-')}{focus_tag}{maxlen_tag}.json")
     if not force and sel_cache.exists():
         clips = json.loads(sel_cache.read_text(encoding="utf-8"))
         log.info("cache HIT — clip selection (%d ranges) for '%s'", len(clips), key)
     else:
-        clips = analysis.select_clips(segments, n_clips, duration, llm_model)
+        clips = analysis.select_clips(segments, n_clips, duration, llm_model, focus)
         sel_cache.write_text(json.dumps(clips, ensure_ascii=False), encoding="utf-8")
     log.info("selected %d clip range(s)", len(clips))
     for c in clips:

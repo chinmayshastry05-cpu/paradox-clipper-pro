@@ -44,6 +44,13 @@ def main():
                     default=config.DEFAULT_CAPTION_STYLE)
     ap.add_argument("--caption-script", choices=["hinglish", "native"],
                     default=config.DEFAULT_CAPTION_SCRIPT)
+    ap.add_argument("--focus", default=None,
+                    help="only pick clips about this topic/theme, e.g. "
+                         "\"CIA mission stories\"")
+    ap.add_argument("--max-len", type=float, default=None,
+                    help="max clip length in seconds (e.g. 59)")
+    ap.add_argument("--min-len", type=float, default=None,
+                    help="min clip length in seconds")
     ap.add_argument("--music", default=None, help="optional background music file")
     ap.add_argument("--broll", default=None, help="optional B-roll dir (overlay)")
     ap.add_argument("--dry-run", action="store_true",
@@ -54,6 +61,12 @@ def main():
     args = ap.parse_args()
 
     set_verbose(args.verbose)
+    if args.max_len is not None:
+        config.MAX_LEN = args.max_len
+    if args.min_len is not None:
+        config.MIN_LEN = args.min_len
+    if config.MIN_LEN > config.MAX_LEN:      # keep guardrails sane
+        config.MIN_LEN = min(config.MIN_LEN, config.MAX_LEN)
     for tool in ("ffmpeg", "ffprobe"):
         if not shutil.which(tool):
             log.error("%s not found on PATH", tool)
@@ -66,6 +79,7 @@ def main():
             vertical=args.vertical, captions_on=args.captions,
             caption_style=args.caption_style, caption_script=args.caption_script,
             music=args.music, broll=args.broll, dry_run=args.dry_run, force=args.force,
+            focus=args.focus,
         )
     except (RuntimeError, KeyboardInterrupt) as e:
         log.error("%s", e)
